@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 
 const app = express();
-const PORT = process.env.PORT || 7303;
+const PORT = 7303;
 
 const fileLimit = "10mb";
 
