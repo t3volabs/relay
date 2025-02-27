@@ -13,7 +13,7 @@ RUN npm install
 COPY . .
 
 # Expose necessary ports
-EXPOSE 7303
+EXPOSE 57303
 
 # Add and set permissions for startup script
 COPY start.sh /app/start.sh

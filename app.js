@@ -5,7 +5,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 
 const app = express();
-const PORT = 7303;
+const PORT = 57303;
 
 const fileLimit = "10mb";
 
@@ -249,5 +249,5 @@ app.get("/object/:objectId", function (req, res) {
 
 // Start server
 app.listen(PORT, function () {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running : ${PORT}`);
 });
