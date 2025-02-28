@@ -45,7 +45,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_created_at ON objects(created_at);
 `);
 
-
 // Validate type string
 function validateType(type) {
   if (!type || typeof type !== "string" || type.length === 0 || type.length > 20) {
@@ -106,14 +105,14 @@ app.get("/", (req, res) => {
 });
 
 // Save raw data with specific type, userID and objectID
-app.post("/save/:type/:userId/:objectId", (req, res) => {
+app.post("/save/:type/:userId", (req, res) => {
   try {
-    let { type, userId, objectId } = req.params;
+    let { type, userId } = req.params;
     const data = req.body; // Raw data buffer
 
     const objectX = crypto
       .createHash("sha256")
-      .update(userId + "_" + objectId)
+      .update(userId + "_" + data)
       .digest("hex");
 
     // Validate input
