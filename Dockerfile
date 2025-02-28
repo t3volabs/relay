@@ -15,9 +15,5 @@ COPY . .
 # Expose necessary ports
 EXPOSE 57303
 
-# Add and set permissions for startup script
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
-
-# Start the application
-CMD ["sh", "/app/start.sh"]
+# Start the application directly with Node.js
+CMD ["node", "app.js"]
