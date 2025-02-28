@@ -33,20 +33,18 @@ if (!fs.existsSync(dataDir)) {
 // Initialize SQLite database
 const db = new BetterSqlite3(path.join(dataDir, "storage.db"));
 
-// Set up database schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS objects (
-    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))), 
-    objectId TEXT NOT NULL,
+    objectId TEXT PRIMARY KEY, 
     userId TEXT NOT NULL,
     type TEXT NOT NULL,
     data BLOB NOT NULL,
     created_at INTEGER NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS idx_objectId ON objects(objectId);
   CREATE INDEX IF NOT EXISTS idx_userId_type ON objects(userId, type);
   CREATE INDEX IF NOT EXISTS idx_created_at ON objects(created_at);
 `);
+
 
 // Validate type string
 function validateType(type) {
