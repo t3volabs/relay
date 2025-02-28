@@ -113,7 +113,10 @@ app.post("/save/:type/:userId/:objectId", (req, res) => {
     let { type, userId, objectId } = req.params;
     const data = req.body; // Raw data buffer
 
-    const objectX = userId + "_" + objectId;
+    const objectX = crypto
+      .createHash("sha256")
+      .update(userId + "_" + objectId)
+      .digest("hex");
 
     // Validate input
     if (!data || data.length === 0) {
