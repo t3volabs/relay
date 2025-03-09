@@ -28,13 +28,12 @@ const deleteOldEntries = () => {
   const now = Date.now();
   const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000; // 10 days in milliseconds
 
-  // Delete entries older than 10 days
   db.prepare("DELETE FROM objects WHERE created_at < ?").run(tenDaysAgo);
   console.log("Deleted entries older than 10 days");
 };
 
 // Run cleanup every 24 hours
-setInterval(deleteOldEntries, 24 * 60 * 60 * 1000); // Every 24 hours
+setInterval(deleteOldEntries, 24 * 60 * 60 * 1000);
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -53,33 +52,33 @@ app.post("/save/:userId", (req, res) => {
     const hashedUserId = hashUserId(userId);
     const data = JSON.stringify(req.body);
 
-    // Check if body is empty or malformed
+    console.log("User ID:", userId, "Hashed User ID:", hashedUserId);
+
     if (!data || data.length === 0) {
       throw new Error("Data is empty or malformed");
     }
 
     const objectId = hashUserId(data + hashedUserId);
-
     const now = Date.now();
 
-     db.prepare("INSERT OR REPLACE INTO objects (objectId, userId, entry, created_at) VALUES (?, ?, ?, ?)").run(objectId, hashedUserId, data, now);
+    db.prepare("INSERT OR REPLACE INTO objects (objectId, userId, entry, created_at) VALUES (?, ?, ?, ?)").run(objectId, hashedUserId, data, now);
 
     res.json({ success: true, objectId, expiresAt: new Date(now + 25 * 24 * 60 * 60 * 1000) });
   } catch (err) {
-    console.error("Error storing object:", err); // Log the error details
+    console.error("Error storing object:", err);
     res.status(500).json({ error: "Failed to store object" });
   }
 });
 
 app.get("/fetch/:userId/:page", (req, res) => {
   try {
-    const { userId, page } = req.params;
+    const { userId } = req.params;
+    const page = parseInt(req.params.page, 10) || 1; // Convert to integer, default to 1 if invalid
     const hashedUserId = hashUserId(userId);
     const limit = 30;
     const offset = (page - 1) * limit;
 
     const totalCount = db.prepare("SELECT COUNT(*) AS count FROM objects WHERE userId = ?").get(hashedUserId).count;
-
     const objects = db.prepare("SELECT entry FROM objects WHERE userId = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").all(hashedUserId, limit, offset);
 
     if (!objects.length) return res.status(404).json({ error: "No data found" });
@@ -89,11 +88,12 @@ app.get("/fetch/:userId/:page", (req, res) => {
       limit,
       totalPages: Math.ceil(totalCount / limit),
       totalCount,
-      hasNextPage: page * limit < totalCount,
+      hasNextPage: offset + limit < totalCount,
       hasPreviousPage: page > 1,
       data: objects.map((obj) => JSON.parse(obj.entry)),
     });
   } catch (err) {
+    console.error("Error fetching objects:", err);
     res.status(500).json({ error: "Failed to fetch objects" });
   }
 });
