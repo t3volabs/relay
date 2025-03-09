@@ -44,6 +44,11 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: "10mb" }));
 
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
 const hashUserId = (userId) => crypto.createHash("sha256").update(userId).digest("hex");
 
 app.post("/save/:userId", (req, res) => {
@@ -51,8 +56,6 @@ app.post("/save/:userId", (req, res) => {
     const { userId } = req.params;
     const hashedUserId = hashUserId(userId);
     const data = JSON.stringify(req.body);
-
-    console.log("User ID:", userId, "Hashed User ID:", hashedUserId);
 
     if (!data || data.length === 0) {
       throw new Error("Data is empty or malformed");
