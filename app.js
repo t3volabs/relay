@@ -1,256 +1,101 @@
 const express = require("express");
 const BetterSqlite3 = require("better-sqlite3");
-const path = require("path");
 const crypto = require("crypto");
+const path = require("path");
 const fs = require("fs");
 
 const app = express();
 const PORT = 57303;
-
-const fileLimit = "10mb";
-
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET, POST");
-  res.header("Access-Control-Allow-Headers", "Content-Type");
-  next();
-});
-
-// Middleware to parse raw bodies
-app.use(
-  express.raw({
-    type: "*/*",
-    limit: fileLimit,
-  })
-);
-
-// Ensure data directory exists
 const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+const dbFile = path.join(dataDir, "storage.db");
 
-// Initialize SQLite database
-const db = new BetterSqlite3(path.join(dataDir, "storage.db"));
+if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
+const db = new BetterSqlite3(dbFile);
+
+// Add created_at field to track when entries are added
 db.exec(`
   CREATE TABLE IF NOT EXISTS objects (
     objectId TEXT PRIMARY KEY, 
     userId TEXT NOT NULL,
-    type TEXT NOT NULL,
-    data BLOB NOT NULL,
+    entry BLOB NOT NULL,
     created_at INTEGER NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS idx_userId_type ON objects(userId, type);
-  CREATE INDEX IF NOT EXISTS idx_created_at ON objects(created_at);
 `);
 
-// Validate type string
-function validateType(type) {
-  if (!type || typeof type !== "string" || type.length === 0 || type.length > 20) {
-    throw new Error("Type must be a string between 1 and 20 characters");
-  }
-  // Only allow alphanumeric and underscore
-  if (!/^[a-zA-Z0-9_]+$/.test(type)) {
-    throw new Error("Type must contain only letters, numbers, and underscores");
-  }
-  return type;
-}
+// Periodic cleanup to remove entries older than 10 days
+const deleteOldEntries = () => {
+  const now = Date.now();
+  const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000; // 10 days in milliseconds
 
-function getTTLTimestamp() {
-  const now = new Date();
-  // Set TTL to 25 days instead of 1 month
-  now.setDate(now.getDate() - 25);
-  return now.getTime();
-}
+  // Delete entries older than 10 days
+  db.prepare("DELETE FROM objects WHERE created_at < ?").run(tenDaysAgo);
+  console.log("Deleted entries older than 10 days");
+};
 
-// Clean up expired items (run periodically)
-function cleanupExpiredItems() {
-  const ttlTimestamp = getTTLTimestamp();
-  const stmt = db.prepare("DELETE FROM objects WHERE created_at < ?");
-  const result = stmt.run(ttlTimestamp);
-  console.log(`Cleaned up ${result.changes} expired items`);
-}
+// Run cleanup every 24 hours
+setInterval(deleteOldEntries, 24 * 60 * 60 * 1000); // Every 24 hours
 
-// Run cleanup on startup and every day
-cleanupExpiredItems();
-setInterval(cleanupExpiredItems, 24 * 60 * 60 * 1000);
-
-// dbsize to human readable format
-
-function formatBytes(bytes, decimals = 2) {
-  if (bytes === 0) return "0 Bytes";
-
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ["Bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-
-  return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
-}
-
-app.get("/", (req, res) => {
-  try {
-    const data = {
-      fileLimit: fileLimit,
-      storageUsed: formatBytes(fs.statSync(path.join(dataDir, "storage.db")).size),
-    };
-
-    res.json(data);
-  } catch (err) {
-    console.error("Error fetching object:", err);
-    res.status(500).json({ error: "Failed to fetch object" });
-  }
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  next();
 });
 
-// Save raw data with specific type, userID and objectID
-app.post("/save/:type/:userId", (req, res) => {
+app.use(express.json({ limit: "10mb" }));
+
+const hashUserId = (userId) => crypto.createHash("sha256").update(userId).digest("hex");
+
+app.post("/save/:userId", (req, res) => {
   try {
-    let { type, userId } = req.params;
-    const data = req.body; // Raw data buffer
+    const { userId } = req.params;
+    const hashedUserId = hashUserId(userId);
+    const data = JSON.stringify(req.body);
 
-    const objectX = crypto
-      .createHash("sha256")
-      .update(userId + "_" + data)
-      .digest("hex");
-
-    // Validate input
+    // Check if body is empty or malformed
     if (!data || data.length === 0) {
-      return res.status(400).json({ error: "No data provided" });
+      throw new Error("Data is empty or malformed");
     }
 
-    try {
-      type = validateType(type);
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
-    }
+    const objectId = hashUserId(data + hashedUserId);
 
-    // Ensure userId is a SHA256 hash
-    if (userId.length !== 64) {
-      userId = crypto.createHash("sha256").update(userId).digest("hex");
-    }
-
-    // Store the object
-    const stmt = db.prepare("INSERT OR REPLACE INTO objects (objectId, userId, type, data, created_at) VALUES (?, ?, ?, ?, ?)");
     const now = Date.now();
 
-    stmt.run(objectX, userId, type, data, now);
+     db.prepare("INSERT OR REPLACE INTO objects (objectId, userId, entry, created_at) VALUES (?, ?, ?, ?)").run(objectId, hashedUserId, data, now);
 
-    res.status(201).json({
-      success: true,
-      message: "Object stored successfully",
-      type,
-      userId,
-      objectX,
-      size: data.length,
-      expiresAt: new Date(now + 25 * 24 * 60 * 60 * 1000).toISOString(),
-    });
+    res.json({ success: true, objectId, expiresAt: new Date(now + 25 * 24 * 60 * 60 * 1000) });
   } catch (err) {
-    console.error("Error storing object:", err);
+    console.error("Error storing object:", err); // Log the error details
     res.status(500).json({ error: "Failed to store object" });
   }
 });
 
-// Fetch all objectIDs for a userID and type
-app.get("/fetch/:type/:userId", (req, res) => {
+app.get("/fetch/:userId/:page", (req, res) => {
   try {
-    let { type, userId } = req.params;
-    const page = Number.parseInt(req.query.page) || 1;
-    const limit = 10; // Fixed page size of 10
+    const { userId, page } = req.params;
+    const hashedUserId = hashUserId(userId);
+    const limit = 30;
     const offset = (page - 1) * limit;
 
-    try {
-      type = validateType(type);
-    } catch (err) {
-      return res.status(400).json({ error: err.message });
-    }
+    const totalCount = db.prepare("SELECT COUNT(*) AS count FROM objects WHERE userId = ?").get(hashedUserId).count;
 
-    // Ensure userId is a SHA256 hash
-    if (userId.length !== 64) {
-      userId = crypto.createHash("sha256").update(userId).digest("hex");
-    }
+    const objects = db.prepare("SELECT entry FROM objects WHERE userId = ? ORDER BY created_at DESC LIMIT ? OFFSET ?").all(hashedUserId, limit, offset);
 
-    // Get TTL timestamp
-    const ttlTimestamp = getTTLTimestamp();
-
-    // Count total objects for this userId and type (not expired)
-    const countStmt = db.prepare("SELECT COUNT(*) as count FROM objects WHERE userId = ? AND type = ? AND created_at >= ?");
-    const { count } = countStmt.get(userId, type, ttlTimestamp);
-
-    // Fetch objectIds with pagination
-    const fetchStmt = db.prepare(`
-      SELECT objectId, created_at, length(data) as size
-      FROM objects 
-      WHERE userId = ? AND type = ? AND created_at >= ? 
-      ORDER BY created_at DESC 
-      LIMIT ? OFFSET ?
-    `);
-
-    const objects = fetchStmt.all(userId, type, ttlTimestamp, limit, offset);
-
-    // Format the response
-    const objectList = objects.map((obj) => ({
-      objectId: obj.objectId,
-      size: obj.size,
-      createdAt: new Date(obj.created_at).toISOString(),
-      expiresAt: new Date(obj.created_at + 25 * 24 * 60 * 60 * 1000).toISOString(),
-    }));
-
-    // Calculate pagination info
-    const totalPages = Math.ceil(count / limit);
+    if (!objects.length) return res.status(404).json({ error: "No data found" });
 
     res.json({
-      type,
-      userId,
-      objects: objectList,
-      pagination: {
-        page,
-        limit,
-        totalObjects: count,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+      totalCount,
+      hasNextPage: page * limit < totalCount,
+      hasPreviousPage: page > 1,
+      data: objects.map((obj) => JSON.parse(obj.entry)),
     });
   } catch (err) {
-    console.error("Error fetching objects:", err);
     res.status(500).json({ error: "Failed to fetch objects" });
   }
 });
 
-// Get specific object by objectID
-app.get("/object/:objectId", (req, res) => {
-  try {
-    const { objectId } = req.params;
-
-    // Get TTL timestamp
-    const ttlTimestamp = getTTLTimestamp();
-
-    // Fetch the object
-    const stmt = db.prepare(`
-      SELECT data, created_at, userId, type
-      FROM objects 
-      WHERE objectId = ? AND created_at >= ?
-    `);
-
-    const object = stmt.get(objectId, ttlTimestamp);
-
-    if (!object) {
-      return res.status(404).json({ error: "Object not found or expired" });
-    }
-
-    // Send raw data with appropriate headers
-    res.set("Content-Type", "application/octet-stream");
-    res.set("Content-Length", object.data.length);
-    res.send(object.data);
-  } catch (err) {
-    console.error("Error fetching object:", err);
-    res.status(500).json({ error: "Failed to fetch object" });
-  }
-});
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running : ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
