@@ -5,7 +5,7 @@ FROM node:slim
 WORKDIR /app
 
 # install necessary packages
-RUN apt-get update && apt-get install -y git curl
+RUN apt-get update && apt-get install -y curl unzip
 
 # Copy package.json and package-lock.json, then install dependencies
 COPY package*.json ./
