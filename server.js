@@ -23,10 +23,11 @@ db.exec(`
   );
 `);
 
-// Periodic cleanup to remove entries older than 10 days
+// Periodic cleanup to remove entries older than x days
 const deleteOldEntries = () => {
+  const dayx = 30;
   const now = Date.now();
-  const tenDaysAgo = now - 10 * 24 * 60 * 60 * 1000; // 10 days in milliseconds
+  const tenDaysAgo = now - dayx * 24 * 60 * 60 * 1000;
 
   db.prepare("DELETE FROM objects WHERE created_at < ?").run(tenDaysAgo);
   console.log("Deleted entries older than 10 days");
