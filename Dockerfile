@@ -16,4 +16,4 @@ COPY . .
 EXPOSE 57303
 
 # Start the application directly with Node.js
-CMD ["node", "app.js"]
+CMD ["node", "server.js"]

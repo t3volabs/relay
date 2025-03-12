@@ -51,7 +51,7 @@ app.use((req, res, next) => {
 
 const hashUserId = (userId) => crypto.createHash("sha256").update(userId).digest("hex");
 
-app.get("/", (req, res) => {
+app.get("/server", (req, res) => {
   const totalEntries = db.prepare("SELECT COUNT(*) AS count FROM objects").get().count;
   const totalUsers = db.prepare("SELECT COUNT(DISTINCT userId) AS count FROM objects").get().count;
   const totalSize = db.prepare("SELECT SUM(LENGTH(entry)) AS size FROM objects").get().size;
