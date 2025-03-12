@@ -1,10 +1,13 @@
 #!/bin/bash
 
-# Clone the repository and checkout the 'stable' tag
-git clone --branch stable --depth 1 https://github.com/t3volabs/t3vo-app.git
+# Download the latest stable release ZIP archive
+curl -L -o t3vo-app.zip https://github.com/t3volabs/t3vo-app/archive/refs/heads/stable.zip
 
-# Navigate into the cloned repository
-cd t3vo-app || exit 1
+# Unzip the archive
+unzip t3vo-app.zip
+
+# Navigate into the extracted folder
+cd t3vo-app-stable || exit 1
 
 # Install dependencies
 npm i
@@ -18,7 +21,7 @@ mv dist ../
 # Navigate back to the root directory
 cd ..
 
-# Remove the cloned repository
-rm -rf t3vo-app
+# Cleanup
+rm -rf t3vo-app-stable t3vo-app.zip
 
 echo "Build complete. The dist folder is now in the root directory."
