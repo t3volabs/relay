@@ -4,6 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
+    "build": "./x.sh",
     "start": "node server.js"
   },
   "repository": {
