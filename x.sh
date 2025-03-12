@@ -10,7 +10,7 @@ unzip t3vo-app.zip
 cd t3vo-app-stable || exit 1
 
 # Install dependencies
-npm i
+npm ci
 
 # Build the project
 npm run build
