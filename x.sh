@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Download the latest stable release ZIP archive
-curl -L -o t3vo-app.zip https://github.com/t3volabs/t3vo-app/archive/refs/heads/stable.zip
+curl -L -o t3vo-app.zip https://github.com/t3volabs/t3vo-app/archive/refs/tags/stable.zip
 
 # Unzip the archive
 unzip t3vo-app.zip
