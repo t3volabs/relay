@@ -53,7 +53,7 @@ const hashUserId = (userId) => crypto.createHash("sha256").update(userId).digest
 
 app.use(express.static("dist"));
 
-app.get("/server", (req, res) => {
+app.get("/api/", (req, res) => {
   const totalEntries = db.prepare("SELECT COUNT(*) AS count FROM objects").get().count;
   const totalUsers = db.prepare("SELECT COUNT(DISTINCT userId) AS count FROM objects").get().count;
   const totalSize = db.prepare("SELECT SUM(LENGTH(entry)) AS size FROM objects").get().size;
@@ -66,7 +66,7 @@ app.get("/server", (req, res) => {
   });
 });
 
-app.post("/save/:userId", (req, res) => {
+app.post("/api/save/:userId", (req, res) => {
   try {
     const { userId } = req.params;
     const hashedUserId = hashUserId(userId);
@@ -88,7 +88,7 @@ app.post("/save/:userId", (req, res) => {
   }
 });
 
-app.get("/fetch/:userId/:page", (req, res) => {
+app.get("/api/fetch/:userId/:page", (req, res) => {
   try {
     const { userId } = req.params;
     const page = parseInt(req.params.page, 10) || 1; // Convert to integer, default to 1 if invalid
