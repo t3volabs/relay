@@ -3,6 +3,7 @@ const BetterSqlite3 = require("better-sqlite3");
 const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
+const morgan = require("morgan");
 
 const app = express();
 const PORT = 57303;
@@ -13,7 +14,6 @@ if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
 const db = new BetterSqlite3(dbFile);
 
-// Add created_at field to track when entries are added
 db.exec(`
   CREATE TABLE IF NOT EXISTS objects (
     objectId TEXT PRIMARY KEY, 
@@ -23,7 +23,6 @@ db.exec(`
   );
 `);
 
-// Periodic cleanup to remove entries older than x days
 const deleteOldEntries = () => {
   const dayx = 30;
   const now = Date.now();
@@ -33,8 +32,11 @@ const deleteOldEntries = () => {
   console.log("Deleted entries older than 10 days");
 };
 
-// Run cleanup every 24 hours
+const hashUserId = (userId) => crypto.createHash("sha256").update(userId).digest("hex");
+
 setInterval(deleteOldEntries, 24 * 60 * 60 * 1000);
+
+app.use(morgan("combined"));
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -44,15 +46,6 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: "10mb" }));
-
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
-  next();
-});
-
-const hashUserId = (userId) => crypto.createHash("sha256").update(userId).digest("hex");
-
-app.use(express.static("dist"));
 
 app.get("/api/", (req, res) => {
   const totalEntries = db.prepare("SELECT COUNT(*) AS count FROM objects").get().count;
@@ -116,5 +109,7 @@ app.get("/api/fetch/:userId/:page", (req, res) => {
     res.status(500).json({ error: "Failed to fetch objects" });
   }
 });
+
+app.use(express.static("dist"));
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
